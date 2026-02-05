@@ -1,0 +1,4 @@
+export { B as BaiduTranslator, a as BaiduTranslatorOptions, b as BaseTranslator, D as DeepLTranslator, c as DeepLTranslatorOptions, G as GLMTranslator, d as GLMTranslatorOptions, e as GoogleTranslator, f as GoogleTranslatorOptions, I as I18nConfig, O as OpenAITranslator, g as OpenAITranslatorOptions, T as TranslationResult, h as TranslatorOptions, i as TranslatorRegistry, j as createTranslatorFromConfig, k as defaultRegistry, l as loadConfig } from './index-CG8W7gQa.js';
+export { BaseExtractor, ExtractionResult, ExtractorOptions, JSExtractor, JSExtractorOptions, VueExtractor, extractChineseFromProject, extractFromJSFile, extractFromVueFile } from './extractors/index.js';
+export { ensureDir, fileExists, generateKey, hasChinese, loadExtractedText, loadLocale, normalizeText, readFile, saveExtractedText, saveLocale, writeFile } from './utils/index.js';
+import '@babel/parser';

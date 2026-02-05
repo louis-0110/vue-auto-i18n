@@ -1,0 +1,63 @@
+{
+  "name": "vue-auto-i18n",
+  "version": "2.0.0",
+  "description": "Vue Auto I18n - Automatic translation and AST transformation for Vue projects",
+  "type": "module",
+  "main": "index.js",
+  "module": "index.js",
+  "types": "index.d.ts",
+  "exports": {
+    ".": "./index.js",
+    "./vite": "./@vue-auto-i18n/vite-plugin/index.js",
+    "./core": "./@vue-auto-i18n/core/index.js",
+    "./replacer": "./@vue-auto-i18n/replacer/index.js",
+    "./cli": "./@vue-auto-i18n/cli/index.js"
+  },
+  "bin": {
+    "vue-auto-i18n": "./@vue-auto-i18n/cli/cli.js"
+  },
+  "files": [
+    "@vue-auto-i18n",
+    "index.js",
+    "index.d.ts",
+    "README.md",
+    "install.js"
+  ],
+  "scripts": {
+    "postinstall": "node install.js"
+  },
+  "keywords": [
+    "vue",
+    "i18n",
+    "internationalization",
+    "translation",
+    "vite",
+    "automation",
+    "ast"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@babel/generator": "^7.23.0",
+    "@babel/parser": "^7.23.0",
+    "@babel/traverse": "^7.23.0",
+    "@vue/compiler-sfc": "^3.4.0",
+    "fast-glob": "^3.3.2",
+    "chalk": "^5.3.0",
+    "commander": "^11.1.0",
+    "dotenv": "^16.6.1",
+    "ora": "^8.0.1"
+  },
+  "peerDependencies": {
+    "vite": ">=5.0.0",
+    "vue": ">=3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "vite": {
+      "optional": true
+    }
+  }
+}

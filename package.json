@@ -1,0 +1,49 @@
+{
+  "name": "vue-auto-i18n-monorepo",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Vue Auto I18n - Monorepo with automatic translation and AST transformation",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.js",
+    "dev": "pnpm -r --parallel --filter './packages/*' dev",
+    "test": "pnpm -r test",
+    "lint": "eslint packages/*/src",
+    "changeset": "changeset",
+    "release": "pnpm build && pnpm -r publish",
+    "clean": "node scripts/clean.js",
+    "preinstall": "npx only-allow pnpm",
+    "prepare:release": "node scripts/prepare-release.sh",
+    "check:versions": "node scripts/check-versions.js",
+    "verify:packages": "node scripts/verify-packages.js"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.27.1",
+    "@types/babel__generator": "^7.27.0",
+    "@types/babel__traverse": "^7.28.0",
+    "@types/node": "^20.10.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.50.0",
+    "only-allow": "^1.2.1",
+    "tsup": "^8.0.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "keywords": [
+    "vue",
+    "i18n",
+    "internationalization",
+    "translation",
+    "ast",
+    "automation",
+    "monorepo"
+  ],
+  "author": "",
+  "license": "MIT",
+  "packageManager": "pnpm@8.15.0"
+}
