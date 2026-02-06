@@ -1,5 +1,64 @@
 # 安装指南
 
+## 🎯 方式零：使用 .tgz 文件安装（推荐用于本地测试）
+
+包文件位置：`vue-auto-i18n-2.0.0.tgz` (87KB)
+
+### 安装步骤
+
+在您的项目根目录执行：
+
+```bash
+# 使用 npm
+npm install D:/Projects/演示项目/vue-auto-i18n/vue-auto-i18n-2.0.0.tgz
+
+# 使用 pnpm
+pnpm add D:/Projects/演示项目/vue-auto-i18n/vue-auto-i18n-2.0.0.tgz
+
+# 使用 yarn
+yarn add D:/Projects/演示项目/vue-auto-i18n/vue-auto-i18n-2.0.0.tgz
+```
+
+### 配置 Vite
+
+安装后，在 `vite.config.ts` 中：
+
+```typescript
+import { defineConfig } from 'vite'
+import vue from '@vitejs/plugin-vue'
+import AutoI18n from 'vue-auto-i18n/vite-plugin'
+
+export default defineConfig({
+  plugins: [
+    vue(),
+    AutoI18n({
+      localesDir: 'src/locales',
+      devMode: false
+    })
+  ]
+})
+```
+
+### 使用示例
+
+```vue
+<template>
+  <div>
+    <h1>{{ $t('title') }}</h1>
+  </div>
+</template>
+```
+
+### 包内容
+
+聚合包包含所有子包：
+- `vue-auto-i18n/core` - 核心功能
+- `vue-auto-i18n/vite-plugin` - Vite 插件（已修复属性重复问题）
+- `vue-auto-i18n/cli` - CLI 工具
+- `vue-auto-i18n/replacer` - 代码替换工具
+
+---
+
 ## 方式一：直接引用（推荐用于正式项目）
 
 ### 1. 安装 CLI 和 Vite 插件

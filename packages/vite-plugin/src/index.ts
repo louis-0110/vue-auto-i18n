@@ -34,6 +34,10 @@ export function createAutoI18nPlugin(options: PluginOptions = {}): Plugin {
   let isProduction = false
   const cacheManager = createCacheManager(cacheDir)
 
+  // Track processed files to prevent duplicate transformation in dev mode
+  const processedFiles = new Map<string, string>()
+  const fileHashes = new Map<string, number>()
+
   return {
     name: 'vite-plugin-auto-i18n',
     enforce: 'pre', // 在 Vue 插件之前执行，确保能拿到原始 .vue 文件
@@ -45,8 +49,10 @@ export function createAutoI18nPlugin(options: PluginOptions = {}): Plugin {
 
     // Load language pack at build start
     buildStart() {
-      // Clear cache to ensure fresh transformation
+      // Clear cache and processed files to ensure fresh transformation
       cacheManager.clear()
+      processedFiles.clear()
+      fileHashes.clear()
 
       try {
         const zhPath = join(process.cwd(), localesDir, 'zh-CN.json')
@@ -86,6 +92,21 @@ export function createAutoI18nPlugin(options: PluginOptions = {}): Plugin {
         return null
       }
 
+      // File-level duplicate check: compute hash and compare
+      const currentHash = hashString(code)
+      const previousHash = fileHashes.get(id)
+
+      if (previousHash === currentHash && processedFiles.has(id)) {
+        // File already processed with same content
+        if (!devMode) {
+          console.log(`[vite-plugin-auto-i18n] Skipping already processed file: ${id.split('/').pop()}`)
+        }
+        return processedFiles.get(id) || null
+      }
+
+      // Update hash
+      fileHashes.set(id, currentHash)
+
       // Log that we're processing this file
       if (!devMode) {
         console.log(`[vite-plugin-auto-i18n] Processing: ${id.split('/').pop()}`)
@@ -97,6 +118,8 @@ export function createAutoI18nPlugin(options: PluginOptions = {}): Plugin {
         if (!devMode) {
           console.log(`[vite-plugin-auto-i18n] Using cached result`)
         }
+        // Store cached result in processed files
+        processedFiles.set(id, cached.code)
         return cached
       }
 
@@ -114,9 +137,10 @@ export function createAutoI18nPlugin(options: PluginOptions = {}): Plugin {
         }
       }
 
-      // Cache result
+      // Cache result and store in processed files
       if (result) {
         cacheManager.set(id, code, result)
+        processedFiles.set(id, result.code)
       }
 
       return result
@@ -131,6 +155,21 @@ export function createAutoI18nPlugin(options: PluginOptions = {}): Plugin {
       }
     }
   }
+}
+
+/**
+ * Simple hash function for string comparison
+ * Uses a basic DJB2 hash algorithm
+ */
+function hashString(str: string): number {
+  let hash = 5381
+  let i = str.length
+
+  while (i) {
+    hash = (hash * 33) ^ str.charCodeAt(--i)
+  }
+
+  return hash >>> 0 // Convert to unsigned 32-bit integer
 }
 
 export default createAutoI18nPlugin

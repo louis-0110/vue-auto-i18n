@@ -5,6 +5,10 @@
 
 import { parse } from '@vue/compiler-sfc'
 
+// Unique marker to identify already transformed files
+const TRANSFORM_MARKER = '__vue_auto_i18n_transformed__'
+const I18N_FUNCTION_PATTERN = /\$t\(['"]/
+
 export function transform(
   code: string,
   id: string,
@@ -26,9 +30,9 @@ export function transform(
     return null
   }
 
-  // Skip if code is already transformed (contains $t)
-  if (code.includes('$t(') || code.includes('{{ $t')) {
-    console.log(`[transform] Already contains $t()`)
+  // Enhanced duplicate check: skip if code is already transformed
+  if (code.includes(TRANSFORM_MARKER) || I18N_FUNCTION_PATTERN.test(code)) {
+    console.log(`[transform] Already transformed - skipping`)
     return null
   }
 
@@ -61,6 +65,61 @@ export function transform(
     console.log(`[transform] Generated code (first 300 chars):`, newTemplateCode.substring(0, 300))
     console.log(`[transform] Original template length: ${descriptor.template.content.length}`)
     console.log(`[transform] New template length: ${newTemplateCode.length}`)
+
+    // Show the area around position 435 if the code is long enough
+    if (newTemplateCode.length > 435) {
+      const startPos = Math.max(0, 435 - 50)
+      const endPos = Math.min(newTemplateCode.length, 435 + 50)
+      console.log(`[transform] Code around position 435:`)
+      console.log(`[transform] Position ${startPos}-${endPos}: "${newTemplateCode.substring(startPos, endPos)}"`)
+      console.log(`[transform] Character at 435: "${newTemplateCode[435]}" (code: ${newTemplateCode.charCodeAt(435)})`)
+    }
+
+    // Debug: Check for duplicate attributes in individual elements
+    // Parse the generated code to find elements with duplicate attrs
+    const elementRegex = /<([a-zA-Z][a-zA-Z0-9]*)\b[^>]*>/g
+    let elemMatch
+    while ((elemMatch = elementRegex.exec(newTemplateCode)) !== null) {
+      const elementTag = elemMatch[1]
+      const elementCode = elemMatch[0]
+      const elementStart = elemMatch.index
+
+      // Find all attributes in this element (including : shorthand for v-bind)
+      // Match both regular attributes and v-bind/: shorthand
+      const attrRegex = /(?::\s*|[\s/>])([\w-]+)=/g
+      const attrsInElement = new Map<string, number>()
+      let attrMatch
+      while ((attrMatch = attrRegex.exec(elementCode)) !== null) {
+        const attrName = attrMatch[1]
+        // Normalize :attr to attr for comparison
+        const normalizedName = attrName
+        if (!attrsInElement.has(normalizedName)) {
+          attrsInElement.set(normalizedName, 0)
+        }
+        attrsInElement.set(normalizedName, attrsInElement.get(normalizedName)! + 1)
+      }
+
+      // Check if any attribute appears more than once in this element
+      for (const [attrName, count] of attrsInElement) {
+        if (count > 1) {
+          console.log(`[transform] ⚠️  Warning: Element <${elementTag}> at position ${elementStart} has duplicate attribute "${attrName}" appearing ${count} times`)
+          console.log(`[transform] Element code:`, elementCode)
+        }
+      }
+    }
+
+    // Additional check: look for the pattern "attrName=" appearing twice in close proximity
+    // This catches cases where attributes might not have proper spacing
+    const proximityRegex = /([\w-]+)=[^>]*?\s+([\w-]+)=/g
+    let proxMatch
+    while ((proxMatch = proximityRegex.exec(newTemplateCode)) !== null) {
+      const attr1 = proxMatch[1]
+      const attr2 = proxMatch[2]
+      if (attr1 === attr2) {
+        console.log(`[transform] ⚠️  Warning: Found duplicate attribute "${attr1}" in proximity at position ${proxMatch.index}`)
+        console.log(`[transform] Context: "${newTemplateCode.substring(Math.max(0, proxMatch.index - 20), proxMatch.index + 50)}"`)
+      }
+    }
 
     // Replace template in original code
     const templateStart = code.indexOf('<template')
@@ -159,39 +218,118 @@ function transformNode(node: any, keyMap: Record<string, string>): any {
     if (node.value && node.value.content) {
       const chineseText = findChineseKey(node.value.content, keyMap)
       if (chineseText) {
+        // Return a completely new node to avoid reference sharing
         return {
-          ...node,
+          type: 6,
+          name: node.name,
           value: {
             type: 4, // SIMPLE_EXPRESSION
             content: `$t('${chineseText}')`,
-            isStatic: false
-          }
+            isStatic: false,
+            loc: node.value?.loc
+          },
+          loc: node.loc
         }
       }
     }
-    return node
+    // Return a copy to avoid reference issues
+    return {
+      type: node.type,
+      name: node.name,
+      value: node.value ? {
+        type: node.value.type,
+        content: node.value.content,
+        isStatic: node.value.isStatic,  // Preserve isStatic!
+        loc: node.value.loc
+      } : null,
+      loc: node.loc
+    }
   }
 
   // Transform element nodes (type === 1)
   if (node.type === 1) {
-    console.log(`[transformNode] Processing ELEMENT <${node.tag}> with ${node.children?.length || 0} children`)
-    const transformedNode = { ...node }
+    console.log(`[transformNode] Processing ELEMENT <${node.tag}> with ${node.children?.length || 0} children, isSelfClosing=${node.isSelfClosing}`)
 
-    // Transform children
-    if (node.children) {
-      transformedNode.children = node.children.map((child: any) =>
-        transformNode(child, keyMap)
-      )
+    // Log all props before transformation
+    if (node.props && node.props.length > 0) {
+      console.log(`[transformNode] Props before transformation for <${node.tag}>:`)
+      for (const prop of node.props) {
+        if (prop.type === 6) {
+          console.log(`  - Attribute: name="${prop.name}", value="${prop.value?.content || ''}", isStatic=${prop.value?.isStatic}`)
+        } else if (prop.type === 7) {
+          console.log(`  - Directive: name="${prop.name}", arg="${prop.arg || ''}"`)
+        }
+      }
     }
 
-    // Transform props
-    if (node.props) {
-      transformedNode.props = node.props.map((prop: any) =>
-        transformNode(prop, keyMap)
-      )
+    // Transform children and props with new arrays to avoid reference sharing
+    const transformedChildren = node.children ? node.children.map((child: any) =>
+      transformNode(child, keyMap)
+    ) : node.children
+
+    // Transform props first
+    let transformedProps = node.props ? node.props.map((prop: any) =>
+      transformNode(prop, keyMap)
+    ) : node.props
+
+    // Log all props after transformation
+    if (transformedProps && transformedProps.length > 0) {
+      console.log(`[transformNode] Props after transformation for <${node.tag}>:`)
+      for (const prop of transformedProps) {
+        if (prop.type === 6) {
+          console.log(`  - Attribute: name="${prop.name}", value="${prop.value?.content || ''}", isStatic=${prop.value?.isStatic}`)
+        } else if (prop.type === 7) {
+          console.log(`  - Directive: name="${prop.name}", arg="${prop.arg || ''}"`)
+        }
+      }
     }
 
-    return transformedNode
+    // Remove duplicate props by name (keep LAST occurrence, not first)
+    if (transformedProps && transformedProps.length > 0) {
+      const seenProps = new Map<string, any>()
+      const uniqueProps: any[] = []
+
+      // Iterate in reverse to keep the last occurrence
+      for (let i = transformedProps.length - 1; i >= 0; i--) {
+        const prop = transformedProps[i]
+        if (prop.type === 6) {
+          // Attribute - use name as key
+          if (!seenProps.has(prop.name)) {
+            seenProps.set(prop.name, prop)
+            uniqueProps.unshift(prop) // Add to beginning to maintain order
+          } else {
+            console.log(`[transformNode] Removing duplicate attribute: ${prop.name} (keeping last)`)
+          }
+        } else if (prop.type === 7) {
+          // Directive - use name+arg as key
+          const directiveKey = `${prop.name}${prop.arg ? ':' + prop.arg : ''}`
+          if (!seenProps.has(directiveKey)) {
+            seenProps.set(directiveKey, prop)
+            uniqueProps.unshift(prop)
+          } else {
+            console.log(`[transformNode] Removing duplicate directive: ${directiveKey} (keeping last)`)
+          }
+        } else {
+          // Other types - keep as is
+          uniqueProps.unshift(prop)
+        }
+      }
+
+      transformedProps = uniqueProps
+      console.log(`[transformNode] Deduplicated props: ${node.props?.length || 0} -> ${transformedProps.length}`)
+    }
+
+    // Return a completely new object
+    return {
+      type: node.type,
+      tag: node.tag,
+      tagType: node.tagType,
+      isSelfClosing: node.isSelfClosing,
+      children: transformedChildren,
+      props: transformedProps,
+      loc: node.loc,
+      ns: node.ns
+    }
   }
 
   return node
@@ -260,6 +398,8 @@ function generateNode(node: any, indent: string = ''): string {
 function generateElement(node: any, indent: string = ''): string {
   let code = ''
 
+  console.log(`[generateElement] Generating <${node.tag}> with ${node.props?.length || 0} props`)
+
   // Opening tag
   code += `<${node.tag}`
 
@@ -268,8 +408,19 @@ function generateElement(node: any, indent: string = ''): string {
     for (const prop of node.props) {
       if (prop.type === 6) {
         // Attribute
-        const attrValue = prop.value?.content || ''
-        code += ` ${prop.name}="${attrValue}"`
+        // Check if value is a dynamic expression (like $t('key'))
+        if (prop.value && prop.value.type === 4 && !prop.value.isStatic) {
+          // Dynamic expression - use v-bind or : shorthand
+          // Don't wrap dynamic expressions in quotes
+          code += ` :${prop.name}="${prop.value.content.replace(/"/g, '&quot;')}"`
+        } else if (prop.value && prop.value.content) {
+          // Static attribute - escape quotes
+          const escapedValue = prop.value.content.replace(/"/g, '&quot;')
+          code += ` ${prop.name}="${escapedValue}"`
+        } else {
+          // Boolean attribute
+          code += ` ${prop.name}`
+        }
       } else if (prop.type === 7) {
         // Directive
         code += ` ${prop.name}${prop.arg ? ':' : ''}${prop.arg || ''}="${prop.exp?.content || ''}"`
@@ -280,6 +431,7 @@ function generateElement(node: any, indent: string = ''): string {
   // Self-closing
   if (node.isSelfClosing) {
     code += ' />'
+    console.log(`[generateElement] Generated (self-closing): ${code}`)
     return code
   }
 
@@ -294,6 +446,11 @@ function generateElement(node: any, indent: string = ''): string {
 
   // Closing tag
   code += `</${node.tag}>`
+
+  // Log the generated code for elements with props (for debugging)
+  if (node.props && node.props.length > 0) {
+    console.log(`[generateElement] Generated: ${code.substring(0, 200)}${code.length > 200 ? '...' : ''}`)
+  }
 
   return code
 }
